@@ -105,11 +105,23 @@ class TestIsNewer:
 # ===========================================================================
 
 class TestCheckForUpdate:
-    def test_no_token_returns_error(self):
-        svc = _svc()
+    @patch("github_updater.update_service.urlopen")
+    def test_no_token_checks_public_repo(self, mock_urlopen):
+        svc = _svc("1.0.0")
+        mock_urlopen.return_value = _mock_urlopen(_make_release_response(tag="v1.1.0"))
         result = svc.check_for_update("")
-        assert result["error"] == "No GitHub token configured"
-        assert result["has_update"] is False
+        assert result["error"] == ""
+        assert result["has_update"] is True
+        assert result["latest_version"] == "1.1.0"
+
+    @patch("github_updater.update_service.urlopen")
+    def test_no_token_sends_no_authorization_header(self, mock_urlopen):
+        svc = _svc("1.0.0")
+        mock_urlopen.return_value = _mock_urlopen(_make_release_response(tag="v1.1.0"))
+        svc.check_for_update("")
+        req = mock_urlopen.call_args[0][0]
+        assert req.get_header("Authorization") is None
+        assert req.get_header("Accept") == "application/vnd.github.v3+json"
 
     @patch("github_updater.update_service.urlopen")
     def test_no_update_available(self, mock_urlopen):
@@ -259,6 +271,25 @@ class TestDownloadUpdate:
         url = f"https://api.github.com/repos/{OWNER}/{REPO}/releases/assets/999"
         result = svc.download_update(url, "ghp_test")
         assert result == ""
+
+    @patch("github_updater.update_service.urlopen")
+    def test_download_anonymous_sends_octet_stream(self, mock_urlopen):
+        svc = _svc()
+        fake_content = b"MZ" + b"\x00" * 200
+        mock_resp = MagicMock()
+        mock_resp.read.side_effect = [fake_content, b""]
+        mock_resp.headers = {"Content-Length": str(len(fake_content))}
+        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        mock_urlopen.return_value = mock_resp
+
+        url = f"https://api.github.com/repos/{OWNER}/{REPO}/releases/assets/999"
+        result = svc.download_update(url, "")
+        assert result != ""
+        req = mock_urlopen.call_args[0][0]
+        assert req.get_header("Authorization") is None
+        assert req.get_header("Accept") == "application/octet-stream"
+        os.unlink(result)
 
 
 # ===========================================================================

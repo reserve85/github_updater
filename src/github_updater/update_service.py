@@ -41,6 +41,8 @@ class UpdateService:
     def check_for_update(self, token: str = "") -> dict:
         """Check if a new version is available.
 
+        Works without a token for public repositories (anonymous API call).
+
         Returns:
             Dict with: has_update, latest_version, download_url, release_notes, error
         """
@@ -52,19 +54,16 @@ class UpdateService:
             "error": "",
         }
 
-        if not token:
-            result["error"] = "No GitHub token configured"
-            return result
-
         url = GITHUB_API.format(owner=self.owner, repo=self.repo)
         headers = {
             "Accept": "application/vnd.github.v3+json",
             "User-Agent": self._app_name,
         }
-        if token.startswith("github_pat"):
-            headers["Authorization"] = f"Bearer {token}"
-        else:
-            headers["Authorization"] = f"token {token}"
+        if token:
+            if token.startswith("github_pat"):
+                headers["Authorization"] = f"Bearer {token}"
+            else:
+                headers["Authorization"] = f"token {token}"
 
         try:
             req = Request(url, headers=headers)
@@ -111,13 +110,15 @@ class UpdateService:
         """
         headers = {
             "User-Agent": self._app_name,
+            # Anonymous asset downloads from public repos also need the binary
+            # Accept header, otherwise GitHub responds with release JSON.
+            "Accept": "application/octet-stream",
         }
         if token:
             if token.startswith("github_pat"):
                 headers["Authorization"] = f"Bearer {token}"
             else:
                 headers["Authorization"] = f"token {token}"
-            headers["Accept"] = "application/octet-stream"
 
         try:
             req = Request(download_url, headers=headers)
