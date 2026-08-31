@@ -1,12 +1,28 @@
 # github-updater
 
-Shared GitHub release updater for Python desktop applications.
+Shared GitHub release updater for Python desktop applications (**Windows EXE
+self-replace**).
 
-> **2026-08:** The repository was renamed from `Python_Units` to `github_updater`.
-> The old URL `https://github.com/reserve85/Python_Units.git` still works via a
-> GitHub redirect, so existing installs keep working without changes.
+> **2026-08:** The repository was renamed from `Python_Units` to `github_updater`;
+> the old URL redirects, so existing installs keep working.
 
-Provides a single `UpdateService` class that can check a GitHub repository for new releases, download update assets, and apply EXE updates via a Windows batch script — used by both **Movies & Series Autosort** and **MusicSceneReleaser**.
+Used by **Gasmeter-Downloader** (and available to other desktop apps).
+
+## Why the safe swap matters
+
+The pre-1.2.0 updater renamed the running exe to `<exe>.old` **before** the new
+file was in place, hid batch errors behind `>nul 2>&1`, and could leave a machine
+with only `.old` and no executable. v1.2.0 fixes that:
+
+1. **validate** the download (size + `MZ` header) before touching anything,
+2. **restore** a broken `v0.x` state (`.old` present, exe missing) automatically,
+3. **probe** the app folder for write access, then **stage** the new exe as
+   `<exe>.new` on the same volume,
+4. a detached helper **waits** for the process to exit, then retries the atomic
+   `move` until the file lock clears - the original exe is *never* removed before
+   the new one is in place,
+5. every step is logged to `<exe>.update.log`; failures keep the window open with
+   a readable message.
 
 ## Installation
 
@@ -14,18 +30,17 @@ Provides a single `UpdateService` class that can check a GitHub repository for n
 pip install git+https://github.com/reserve85/github_updater.git
 ```
 
-Or pin to a specific tag:
+Or pin to a tag:
 
 ```bash
-pip install git+https://github.com/reserve85/github_updater.git@v1.1.1
+pip install git+https://github.com/reserve85/github_updater.git@v1.2.0
 ```
 
 ## Usage
 
 ```python
-from github_updater import UpdateService
+from github_updater import UpdateService, UpdateError
 
-# Create service with your app's metadata
 svc = UpdateService(
     current_version="1.2.0",
     owner="reserve85",
@@ -33,12 +48,18 @@ svc = UpdateService(
     app_name="MyApp",
 )
 
-# Check for updates
-result = svc.check_for_update(token="ghp_xxx")
-if result["has_update"]:
-    path = svc.download_update(result["download_url"], token="ghp_xxx")
-    if path and svc.apply_update(path):
-        svc.restart_app()
+result = svc.check_for_update(token="")       # -> UpdateCheckResult
+if result.has_update:
+    download = svc.download_update(
+        result.download_url, token="", progress_callback=print
+    )                                          # -> DownloadResult
+    if download.path:
+        try:
+            svc.apply_update(download.path)    # -> True, or raises UpdateError
+        except UpdateError as exc:
+            print(f"Update failed: {exc}")     # current version still intact
+            raise
+        svc.restart_app()                      # exits the app
 ```
 
 ## API
@@ -54,13 +75,50 @@ if result["has_update"]:
 
 ### Methods
 
-- **`check_for_update(token) -> dict`** — Check GitHub for the latest release. Returns `has_update`, `latest_version`, `download_url`, `release_notes`, `error`.
-- **`download_update(url, token, progress_callback) -> str`** — Download the update asset to a temp file. Returns the file path or empty string.
-- **`apply_update(downloaded_path) -> bool`** — Replace the running EXE via a detached batch script (Windows only, frozen apps only).
-- **`restart_app()`** — Exit the app so the user can restart with the new version.
-- **`clean_old_files(exe_path)`** *(static)* — Remove leftover `.old` backup files from a previous update.
-- **`_is_newer(latest, current) -> bool`** *(static)* — Compare semver strings.
+- **`check_for_update(token="") -> UpdateCheckResult`** — latest GitHub release;
+  fields `has_update`, `latest_version`, `download_url`, `release_notes`, `error`;
+  `.as_dict()` gives the legacy dict shape.
+- **`download_update(url, token="", progress_callback=None) -> DownloadResult`** —
+  downloads to a validated temp file; fields `path`, `error`.
+- **`apply_update(path) -> bool`** — stage + atomic swap; **raises `UpdateError`** on
+  failure (your current version is always left intact).
+- **`restart_app()`** — exit the app so the new version takes over.
+- **`clean_old_files(exe_path=None)`** *(static)* — restore a broken state, then remove
+  `<exe>.old`, `<exe>.new`, `<exe>.update.log`.
+
+### Exceptions
+
+- `UpdateError` — user-presentable failure from `apply_update` (and future API).
+  The provided message is safe to show in a dialog.
+
+## Architecture
+
+The package stays **stdlib-only**. Internally it is split into focused modules with
+`UpdateService` as a thin facade:
+
+```
+github_updater/
+  update_service.py    # public facade (keeps the API stable)
+  semantics.py         # version comparison + app-name sanitizing (pure)
+  release_check.py     # GitHub latest-release lookup (urllib)
+  downloader.py        # asset download + exe validation
+  windows_updater.py   # the safe EXE replacement (stage-first)
+  models.py            # UpdateCheckResult / DownloadResult / UpdateError
+```
+
+## Testing
+
+```bash
+pip install -e . ruff pytest
+ruff check src/ tests/
+python -m pytest tests/ -q
+```
+
+101 tests cover version semantics, the GitHub check/download flows, every
+validation- and failure path of the safe apply, exact CRLF helper files, self-
+healing recovery, and - on Windows - a real `cmd /c` swap that proves the batch
+replaces the exe atomically.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT - see [LICENSE](LICENSE).
