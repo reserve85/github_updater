@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 from unittest import mock
 
@@ -149,28 +148,20 @@ class TestSwapBatContent:
         assert b"\r" not in body and b"\n" not in body
 
 
-class TestLauncherVbs:
-    def test_exact_crlf_and_quoting(self, tmp_path):
-        vbs = mod.build_launcher_vbs(tmp_path / "app_update.bat")
-        raw = vbs.encode("utf-8")
-        assert b"\r\r\n" not in raw
-        assert 'CreateObject("WScript.Shell")' in vbs
-        assert 'objShell.Run "cmd /c ""' in vbs  # VBS escaping of the quoted path
-        assert ", 7, False" in vbs
-
-    def test_launch_writes_vbs_and_calls_wscript(self, tmp_path):
+class TestLauncherBatch:
+    def test_launch_uses_cmd_c_and_no_window(self, tmp_path):
         batch = tmp_path / "app_update.bat"
         batch.write_bytes(b"@echo off\r\n")
         with mock.patch("github_updater.windows_updater.subprocess.Popen") as popen:
-            ok = mod.launch_helper(batch, "app")
+            ok = mod.launch_helper(batch)
         assert ok is True
         popen.assert_called_once()
         args = popen.call_args[0][0]
-        assert args[0].lower() == "wscript.exe"
-        vbs = Path(tempfile.gettempdir()) / "app_update.vbs"
-        assert vbs.is_file()
-        assert b"\r\r\n" not in vbs.read_bytes()
-        vbs.unlink(missing_ok=True)
+        assert args[0].lower() == "cmd.exe" or args[0] == "cmd"
+        assert args[1] == "/c"
+        assert args[2].endswith("app_update.bat")
+        kw = popen.call_args.kwargs
+        assert kw.get("creationflags") == subprocess.CREATE_NO_WINDOW
 
     def test_launch_failure_raises(self, tmp_path):
         batch = tmp_path / "app_update.bat"
@@ -179,7 +170,7 @@ class TestLauncherVbs:
             side_effect=OSError("boom"),
         ):
             with pytest.raises(UpdateError, match="Could not launch"):
-                mod.launch_helper(batch, "app")
+                mod.launch_helper(batch)
 class TestApplyUpdate:
     def test_not_frozen_raises(self, tmp_path):
         with mock.patch.object(mod, "_current_exe", return_value=None):

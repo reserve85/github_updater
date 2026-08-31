@@ -12,8 +12,9 @@ that by:
 * launching a detached helper that waits for the process to exit and retries
   the atomic ``move`` until the file lock clears; the ORIGINAL exe is only
   ever overwritten by the finished new file,
-* writing an exact-CRLF ``.bat`` + ``.vbs`` (text mode produced ``\\r\\r\\n``
-  which VBScript can't parse) and a real ``.update.log``.
+* writing an exact-CRLF ``.bat`` (text mode produced ``\\r\\r\\n`` which broke
+  the launcher) launched hidden via ``cmd /c`` - no VBScript, no ``wscript``
+  - plus a real ``.update.log``.
 """
 
 from __future__ import annotations
@@ -146,24 +147,19 @@ def swap_bat_content(exe: Path, staged: Path, pid: int, log_path: Path) -> str:
     )
 
 
-def build_launcher_vbs(bat_path: Path) -> str:
-    """VBS that runs the batch minimized via ``wscript.exe``."""
-    return (
-        "Set objShell = CreateObject(\"WScript.Shell\")\r\n"
-        f'objShell.Run "cmd /c ""{bat_path}"", 7, False\r\n'
-    )
+def launch_helper(batch: Path) -> bool:
+    """Launch the swap batch hidden & detached via ``cmd /c``.
 
-
-def launch_helper(batch: Path, app_key: str) -> bool:
-    """Launch the batch minimized through ``wscript.exe`` (detached)."""
-    vbs = Path(tempfile.gettempdir()) / f"{app_key}_update.vbs"
-    # write_bytes keeps the CRLF exact - text mode would turn \r\n into \r\r\n
-    vbs.write_bytes(build_launcher_vbs(batch).encode("utf-8"))
+    No VBScript/``wscript.exe``: a plain ``cmd /c <batch>`` process is
+    created without a console window and fully detached, so it survives the
+    app exiting and performs the swap once the PID is gone.
+    """
     try:
         subprocess.Popen(
-            ["wscript.exe", str(vbs)],
+            ["cmd", "/c", str(batch)],
             close_fds=True,
             cwd=str(Path(tempfile.gettempdir())),
+            creationflags=subprocess.CREATE_NO_WINDOW,
         )
         return True
     except OSError as exc:
@@ -197,7 +193,7 @@ def apply_update(downloaded_path: str) -> bool:
         swap_bat_content(exe, staged, os.getpid(), log_path).encode("utf-8")
     )
 
-    if not launch_helper(batch_path, exe.stem.lower()):
+    if not launch_helper(batch_path):
         try:
             staged.unlink()
         except OSError:

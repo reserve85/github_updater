@@ -20,7 +20,8 @@ with only `.old` and no executable. v1.2.0 fixes that:
    `<exe>.new` on the same volume,
 4. a detached helper **waits** for the process to exit, then retries the atomic
    `move` until the file lock clears - the original exe is *never* removed before
-   the new one is in place,
+   the new one is in place; the helper is a `.bat` written with exact CRLF bytes
+   and spawned hidden & detached via `cmd /c` (no VBScript/`wscript.exe`),
 5. every step is logged to `<exe>.update.log`; failures keep the window open with
    a readable message.
 

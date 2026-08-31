@@ -18,8 +18,9 @@ that with a stage-first, atomic-swap design:
   is in place,
 - every step is logged to `<exe>.update.log`; failure keeps the window open with a
   readable message,
-- the generated `.bat`/`.vbs` use exact CRLF bytes (the text-mode `\r\r\n` corrupted
-  the VBScript launcher),
+- the generated `.bat` is written with exact CRLF bytes (the text-mode `\r\r\n`
+  broke the launcher) and is spawned hidden & detached via `cmd /c` - no
+  VBScript/`wscript.exe` involved,
 - startup `clean_old_files()` now restores a broken state before removing leftovers.
 
 ### API
