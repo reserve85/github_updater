@@ -117,7 +117,8 @@ class TestSwapBatContent:
         log = exe.with_name("app.exe.update.log")
         content = mod.swap_bat_content(exe, tmp_path / "app.exe.new", 1, log)
         assert "Update complete - you can now start the new version." in content
-        assert 'del /q "C:' in content
+        assert 'del /q "' in content
+        assert "app.exe.new" in content
 
     def test_failure_keeps_window_open_with_log(self, tmp_path):
         exe = _fake_exe(tmp_path)
