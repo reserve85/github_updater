@@ -28,6 +28,9 @@ from pathlib import Path
 
 from github_updater.models import UpdateError
 
+#: Windows-only creation flag (0 on other platforms so the module imports/tests).
+CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
 #: a real packaged exe is many MB; anything near-zero is a failed download
 MIN_EXE_SIZE = 1_000_000
 #: retries for the atomic move after the process exits (30 * 2 s = 60 s)
@@ -159,7 +162,7 @@ def launch_helper(batch: Path) -> bool:
             ["cmd", "/c", str(batch)],
             close_fds=True,
             cwd=str(Path(tempfile.gettempdir())),
-            creationflags=subprocess.CREATE_NO_WINDOW,
+            creationflags=CREATE_NO_WINDOW,
         )
         return True
     except OSError as exc:

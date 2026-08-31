@@ -161,7 +161,7 @@ class TestLauncherBatch:
         assert args[1] == "/c"
         assert args[2].endswith("app_update.bat")
         kw = popen.call_args.kwargs
-        assert kw.get("creationflags") == subprocess.CREATE_NO_WINDOW
+        assert kw.get("creationflags") == mod.CREATE_NO_WINDOW
 
     def test_launch_failure_raises(self, tmp_path):
         batch = tmp_path / "app_update.bat"
