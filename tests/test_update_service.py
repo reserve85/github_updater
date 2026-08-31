@@ -361,6 +361,35 @@ class TestApplyUpdate:
             content = f.read()
         assert 'start ""' not in content
 
+    def test_bat_closes_immediately_on_success_stays_open_on_failure(self, tmp_path, monkeypatch):
+        """Success must close right away; failure must keep the window open."""
+        svc = _svc()
+        new_exe = tmp_path / "update.exe"
+        new_exe.write_bytes(b"MZ" + b"\x00" * 100)
+        exe_path = tmp_path / "app.exe"
+        exe_path.write_bytes(b"MZ" + b"\x00" * 50)
+
+        monkeypatch.setattr("sys.frozen", True, raising=False)
+        monkeypatch.setattr("sys.executable", str(exe_path))
+        monkeypatch.setattr(
+            "github_updater.update_service.subprocess.Popen", lambda *a, **kw: None,
+        )
+
+        svc.apply_update(str(new_exe))
+        import tempfile as _tf
+        bat_path = os.path.join(_tf.gettempdir(), "testapp_update.bat")
+        with open(bat_path) as f:
+            content = f.read()
+        # No more artificial 5-second close window
+        assert "5 seconds" not in content
+        assert "waitfor /t 5" not in content
+        # Success path ends via :end -> file deleted -> window closes immediately
+        assert ":end" in content
+        # Failure path keeps window open and brings it to the foreground
+        assert "pause" in content
+        assert "UPDATE FAILED" in content
+        assert "AppActivate" in content
+
     def test_bat_script_waits_for_pid(self, tmp_path, monkeypatch):
         svc = _svc()
         new_exe = tmp_path / "update.exe"

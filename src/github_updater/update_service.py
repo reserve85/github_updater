@@ -163,7 +163,10 @@ class UpdateService:
         """Replace the current executable using a detached batch helper.
 
         The batch script waits for the running process to exit, then
-        replaces the exe file.  The user restarts the app manually.
+        replaces the exe file.  On success the helper window closes
+        immediately; on failure it stays open (and is brought to the
+        foreground) so the user can see what went wrong.  The user
+        restarts the app manually.
         """
         if not os.path.exists(downloaded_path):
             logger.error("Downloaded path does not exist: %s", downloaded_path)
@@ -215,17 +218,24 @@ class UpdateService:
                 ")\r\n"
                 f'if exist "{current_exe}" goto cleanup\r\n'
                 ":giveup\r\n"
-                "echo UPDATE FAILED - restoring original\r\n"
+                "echo.\r\n"
+                "echo UPDATE FAILED - restoring original executable...\r\n"
                 f'move /y "{backup_path}" "{current_exe}" >nul 2>&1\r\n'
-                "goto done\r\n"
+                "if errorlevel 1 echo   WARNING: could not restore the original executable!\r\n"
+                "echo.\r\n"
+                "echo The update did not complete. Window stays open - read what happened.\r\n"
+                f'title {self._app_name} Update Failed\r\n'
+                f'>nul 2>&1 powershell -NoProfile -Command "$w = New-Object ' +
+                f'-ComObject WScript.Shell; $w.AppActivate(\'{self._app_name} Update Failed\')"\r\n'
+                "echo Press any key to close this window ...\r\n"
+                "pause >nul\r\n"
+                "goto end\r\n"
                 ":cleanup\r\n"
+                "echo.\r\n"
                 "echo Update complete! You can now start the new version.\r\n"
                 f'del /f /q "{backup_path}" >nul 2>&1\r\n'
                 f'del /f /q "{downloaded_path}" >nul 2>&1\r\n'
-                ":done\r\n"
-                "echo.\r\n"
-                "echo This window will close in 5 seconds...\r\n"
-                "waitfor /t 5 NothingThatWillEverExist >nul 2>&1\r\n"
+                ":end\r\n"
                 'del /f /q "%~f0"\r\n'
             )
 

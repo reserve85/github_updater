@@ -17,7 +17,7 @@ pip install git+https://github.com/reserve85/github_updater.git
 Or pin to a specific tag:
 
 ```bash
-pip install git+https://github.com/reserve85/github_updater.git@v1.1.0
+pip install git+https://github.com/reserve85/github_updater.git@v1.1.1
 ```
 
 ## Usage
