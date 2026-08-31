@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "github-updater"
-version = "1.0.0"
+version = "1.1.0"
 description = "Shared GitHub release updater for Python desktop applications"
 readme = "README.md"
 license = "MIT"
@@ -23,8 +23,8 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/reserve85/Python_Units"
-Repository = "https://github.com/reserve85/Python_Units"
+Homepage = "https://github.com/reserve85/github_updater"
+Repository = "https://github.com/reserve85/github_updater"
 
 [tool.setuptools.packages.find]
 where = ["src"]

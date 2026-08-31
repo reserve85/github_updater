@@ -4,12 +4,9 @@ from __future__ import annotations
 
 import json
 import os
-import sys
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from github_updater.update_service import UpdateService, GITHUB_API
+from github_updater.update_service import GITHUB_API, UpdateService
 
 # ---------------------------------------------------------------------------
 # Helpers

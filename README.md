@@ -2,18 +2,22 @@
 
 Shared GitHub release updater for Python desktop applications.
 
+> **2026-08:** The repository was renamed from `Python_Units` to `github_updater`.
+> The old URL `https://github.com/reserve85/Python_Units.git` still works via a
+> GitHub redirect, so existing installs keep working without changes.
+
 Provides a single `UpdateService` class that can check a GitHub repository for new releases, download update assets, and apply EXE updates via a Windows batch script — used by both **Movies & Series Autosort** and **MusicSceneReleaser**.
 
 ## Installation
 
 ```bash
-pip install git+https://github.com/reserve85/Python_Units.git
+pip install git+https://github.com/reserve85/github_updater.git
 ```
 
 Or pin to a specific tag:
 
 ```bash
-pip install git+https://github.com/reserve85/Python_Units.git@v1.0.0
+pip install git+https://github.com/reserve85/github_updater.git@v1.1.0
 ```
 
 ## Usage
